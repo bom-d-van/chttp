@@ -32,3 +32,5 @@
 *.dSYM/
 
 *.bin
+tmp/
+conf/
