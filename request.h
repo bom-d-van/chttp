@@ -27,7 +27,7 @@ typedef struct Request {
 int last_index_of(char *line, int size, char byte);
 
 // TODO: Post, Put
-int *Request_parse_request_line(Request *request);
+int Request_parse_request_line(Request *request);
 int *Request_parse_headers(Request *request);
 int *Request_parse_form(Request *request);
 int Request_free(Request *request);

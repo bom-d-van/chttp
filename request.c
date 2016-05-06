@@ -1,5 +1,7 @@
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
+#include <unistd.h>
 
 #include "request.h"
 #include "reader.h"
@@ -18,11 +20,34 @@ int last_index_of(char *line, int size, char byte)
 	return i;
 }
 
+// PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n
+char *h2ConnPreface = "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
+
 // TODO: fix fixed string length
-int *Request_parse_request_line(Request *request)
+int Request_parse_request_line(Request *request)
 {
 	char line[256];
-	int count = conn_scan(request->conn, "\r\n", line);
+	int count = conn_scan(request->conn, "\r\n", (char *)line);
+	// printf("--------: %s\n", line);
+	if (count == 16 && !strcmp(line, "PRI * HTTP/2.0\r\n")) {
+		bzero(line, 256);
+		conn_scan(request->conn, "\r\n", line);
+		if (strcmp(line, "\r\n")) {
+			return 1;
+		}
+		bzero(line, 256);
+		conn_scan(request->conn, "\r\n", line);
+		if (strcmp(line, "SM\r\n")) {
+			return 1;
+		}
+		bzero(line, 256);
+		conn_scan(request->conn, "\r\n", line);
+		if (strcmp(line, "\r\n")) {
+			return 1;
+		}
+		return 2;
+	}
+
 	request->method = calloc(8, sizeof(char));
 	int findex = strcspn(line, " ");
 	memcpy(request->method, line, findex * sizeof(char));
@@ -141,13 +166,14 @@ int Response_write(Response *response, char *data)
 	}
 
 	char length[256] = {0};
-	sprintf(length, "%d", strlen(data));
+	// sprintf(length, "%d", strlen(data));
 	write(response->conn, "Content-Length: ", 16);
 	write(response->conn, length, strlen(length));
 	write(response->conn, "\r\n", 2);
 
 	write(response->conn, "\r\n", 2);
 	write(response->conn, data, strlen(data));
+	return 0;
 }
 
 char *status_to_string(int status)
@@ -264,7 +290,7 @@ int Request_free(Request *request)
 	return 0;
 }
 
-int Response_free(Response *response)
+int Response_free(Response *__attribute__((unused))response)
 {
 	// Headers_free(response->headers, response->headerNum);
 	return 0;

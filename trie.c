@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include <string.h>
 #include "trie.h"
 
@@ -5,7 +6,7 @@ TrieNode *TrieNode_find(TrieNode *node, char *key)
 {
 	int count = strlen(key);
 	for (int i = 0; i < count; i++) {
-		node = node->children[key[i]];
+		node = node->children[(int)key[i]];
 		if (node == NULL) {
 			return NULL;
 		}
@@ -21,15 +22,15 @@ TrieNode *TrieNode_new()
 }
 
 // TODO: insert existed node?
-int TrieNode_insert(TrieNode *root, char *key, handler *handler)
+int TrieNode_insert(TrieNode *root, char *key, handler handler)
 {
 	TrieNode *node = root;
 	int i = 0;
 	int n = strlen(key);
 
 	while (i < n) {
-		if (node->children[key[i]]) {
-			node = node->children[key[i]];
+		if (node->children[(int)key[i]]) {
+			node = node->children[(int)key[i]];
 			i++;
 		} else {
 			break;
@@ -37,10 +38,11 @@ int TrieNode_insert(TrieNode *root, char *key, handler *handler)
 	}
 
 	while (i < n) {
-		node->children[key[i]] = TrieNode_new();
-		node = node->children[key[i]];
+		node->children[(int)key[i]] = TrieNode_new();
+		node = node->children[(int)key[i]];
 		i++;
 	}
 
 	node->handler = handler;
+	return 0;
 }

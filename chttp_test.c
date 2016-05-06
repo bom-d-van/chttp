@@ -5,14 +5,14 @@
 typedef struct Info {
 	char action[1024];
 	char priority[1024];
-};
+} Info;
 
-struct Info info = { .action = {0}, .priority = {0} };
+Info info = { .action = {0}, .priority = {0} };
 
-int handleHome(Request *request, Response *response)
+int handleHome(Request *__attribute__((unused))request, Response *response)
 {
-	Header headers[5] = {0};
-	response->headers = &headers;
+	Header headers[5];
+	response->headers = headers;
 	response->headers[0].name = "Content-Type";
 	response->headers[0].value = "text/html; charset=utf-8";
 	response->headerNum++;
@@ -55,8 +55,8 @@ int handlePost(Request *request, Response *response)
 	}
 	// printf("info.action = %s; info.priority = %s\n", info.action, info.priority);
 
-	Header headers[5] = {0};
-	response->headers = &headers;
+	Header headers[5];
+	response->headers = headers;
 	response->headers[0].name = "Location";
 	response->headers[0].value = "/";
 	response->headerNum++;
@@ -65,9 +65,11 @@ int handlePost(Request *request, Response *response)
 	return 0;
 }
 
-int main(int argc, char const *argv[])
+int main(void)
 {
-	Server *server = Server_new(4000);
+	int port = 443;
+	printf("Listening :%d\n", port);
+	Server *server = Server_new(port);
 	Server_handle(server, "/", handleHome);
 	Server_handle(server, "/post", handlePost);
 	Server_run(server);

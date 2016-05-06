@@ -15,6 +15,6 @@ typedef struct TrieNode {
 
 TrieNode *TrieNode_find(TrieNode *node, char *key);
 TrieNode *TrieNode_new();
-int TrieNode_insert(TrieNode *root, char *key, handler *handler);
+int TrieNode_insert(TrieNode *root, char *key, handler handler);
 
 #endif

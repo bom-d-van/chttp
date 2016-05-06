@@ -1,7 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
-#include <darray.h>
+// #include <darray.h>
 
 #include "debug.h"
 // #include "reader.h"
@@ -30,6 +30,7 @@ int creader_peek(struct creader *r)
 	return n;
 }
 
+// delimiter is included in line.
 int conn_scan(int conn, char *delimiter, char *line)
 {
 	// dprintf("sizeof(void *) = %d\n", sizeof(void *));
