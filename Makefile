@@ -1,32 +1,48 @@
-CC=cc -ldl -g -O2 -Wall -Wextra -I /Users/bom_d_van/Code/c/lcthw/src -rdynamic -fPIC -c $(OPTFLAGS)
+# -rdynamic
+CC=cc -g -O2 -Wall -Wextra -Wno-unused -fPIC -I/usr/local/opt/openssl/include -c $(OPTFLAGS)
 
 default:
-	$(CC) reader.c -o reader.o
-	$(CC) chttp.c -o chttp.o
-	cc /Users/bom_d_van/Code/c/lcthw/src/darray.o reader.o chttp.o -o chttp.bin
+	$(CC) reader.c -o bin/reader.o
+	$(CC) chttp.c -o bin/chttp.o
+	cc bin/reader.o bin/chttp.o -o bin/chttp.bin
 
 reader:
-	$(CC) reader.c -o reader.o
-	$(CC) reader_test.c -o reader_test.o
-	cc /Users/bom_d_van/Code/c/lcthw/src/darray.o reader.o reader_test.o -o reader_test.bin
+	$(CC) reader.c -o bin/reader.o
+	$(CC) reader_test.c -o bin/reader_test.o
+	cc bin/reader.o bin/reader_test.o -o bin/reader_test.bin
 
 request:
-	$(CC) reader.c -o reader.o
-	$(CC) request.c -o request.o
-	$(CC) request_test.c -o request_test.o
-	cc /Users/bom_d_van/Code/c/lcthw/src/darray.o reader.o request.o request_test.o -o request_test.bin
+	$(CC) reader.c -o bin/reader.o
+	$(CC) request.c -o bin/request.o
+	$(CC) request_test.c -o bin/request_test.o
+	cc bin/reader.o bin/request.o bin/request_test.o -o bin/request_test.bin
 
 trie:
-	# $(CC) request.c -o request.o
-	$(CC) trie.c -o trie.o
-	$(CC) trie_test.c -o trie_test.o
-	# $(CC) request.c -o request.o
-	cc /Users/bom_d_van/Code/c/lcthw/src/darray.o trie.o trie_test.o -o trie_test.bin
+	# $(CC) request.c -o bin/request.o
+	# $(CC) request.c -o bin/request.o
+	$(CC) trie.c -o bin/trie.o
+	$(CC) trie_test.c -o bin/trie_test.o
+	cc bin/trie.o bin/trie_test.o -o bin/trie_test.bin
+
+frame:
+	$(CC) frame.c -o bin/frame.o
+	$(CC) util.c -o bin/util.o
+	$(CC) frame_test.c -o bin/frame_test.o
+	cc bin/util.o bin/frame.o bin/frame_test.o -o bin/frame_test.bin
 
 chttp:
-	$(CC) reader.c -o reader.o
-	$(CC) request.c -o request.o
-	$(CC) trie.c -o trie.o
-	$(CC) chttp.c -o chttp.o
-	$(CC) chttp_test.c -o chttp_test.o
-	cc /Users/bom_d_van/Code/c/lcthw/src/darray.o reader.o request.o trie.o chttp.o chttp_test.o -o chttp_test.bin
+	$(CC) reader.c -o bin/reader.o
+	$(CC) request.c -o bin/request.o
+	$(CC) trie.c -o bin/trie.o
+	$(CC) chttp.c -o bin/chttp.o
+	$(CC) util.c -o bin/util.o
+	$(CC) frame.c -o bin/frame.o
+	$(CC) chttp_test.c -o bin/chttp_test.o
+	cc -L/usr/local/opt/openssl/lib -I/usr/local/opt/openssl/include -lssl -lcrypto -lpthread -lm bin/reader.o bin/request.o bin/trie.o bin/frame.o bin/util.o bin/chttp.o bin/chttp_test.o -o bin/chttp_test.bin
+
+hpacks:
+	$(CC) hpack/tables.c -o bin/tables.o
+	$(CC) hpack/hpack.c -o bin/hpack.o
+	$(CC) util.c -o bin/util.o
+	$(CC) hpack/hpack_test.c -o bin/hpack_test.o
+	cc $(OPTFLAGS) bin/tables.o bin/util.o bin/hpack.o bin/hpack_test.o -o bin/hpack_test.bin
