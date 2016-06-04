@@ -22,3 +22,10 @@ void print_hex(const char *s, int size)
 // 		// }
 // 	}
 // }
+
+void cpystr(char *dst, char *src, int len)
+{
+	for (int i = 0; i < len; i++) {
+		dst[i] = src[i];
+	}
+}

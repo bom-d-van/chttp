@@ -211,8 +211,18 @@ struct hpack *hpack_new()
 	h->maxTableSize = 4 * 1024; // 4K
 	h->dynamicTableLen = 0;
 	h->dynamicTableSize = 0;
-	h->fieldsLen = 0;
 	return h;
+}
+
+void hpack_free(struct hpack * h)
+{
+	struct hpack_header_field *header = h->dynamicTable;
+	while (header) {
+		struct hpack_header_field *f = header;
+		header = header->next;
+		hpack_header_field_free(f);
+	}
+	free(h);
 }
 
 struct hpack_header_field hpack_lookup_field(struct hpack *h, int index)
@@ -242,6 +252,7 @@ struct hpack_header_field hpack_lookup_field(struct hpack *h, int index)
 	return field;
 }
 
+// TODO: switch to array instead of ptr chain?
 int hpack_add_field(struct hpack *h, struct hpack_header_field field)
 {
 	// printf("field.name = %s\n", field.name);
@@ -366,6 +377,7 @@ struct hpack_header_field *hpack_decode(struct hpack *h, char *data, int dataLen
 			}
 		} else if (code & 32) { // DYNAMIC_TABLE_SIZE_UPDATE 001
 			// TODO
+			dprintf("ERROR!!!!!!!! DYNAMIC_TABLE_SIZE_UPDATE Not Supported");
 			field = (struct hpack_header_field){};
 		} else if (code & 16) { // HEADER_FIELD_NEVER_INDEXED 0001
 			dprintf("== Literal never indexed ==\n");
@@ -376,9 +388,15 @@ struct hpack_header_field *hpack_decode(struct hpack *h, char *data, int dataLen
 		}
 
 		list[(*fieldLen)++] = field;
-		if (*fieldLen > cap) {
+		if (*fieldLen >= cap) {
 			cap *= 2;
+			// printf("*fieldLen = %d\n", *fieldLen);
+			// printf("debug ----------------------\n");
+			// hpack_header_fields_dump(list, *fieldLen);
 			list = realloc(list, cap * sizeof(struct hpack_header_field));
+			// printf("debug ----------------------\n");
+			// hpack_header_fields_dump(list, *fieldLen);
+			// printf("debug ----------------------\n");
 		}
 	}
 	return list;
@@ -390,28 +408,43 @@ struct hpack_header_field *hpack_decode(struct hpack *h, char *data, int dataLen
 	// printf("-------------------\n");
 }
 
-#define dynamicTableBeginIndex 62
+#define staticTableBeginLen 62
 
 int hpack_lookup_index(struct hpack *h, struct hpack_header_field *field, int *fullMatch)
 {
 	int index = 0;     // only name match
 	int fullIndex = 0; // name and value match
-	for (int i = 1; i < dynamicTableBeginIndex; i++) {
-		if (!strcmp(hpackStaticTable[i].name, field->name) && !index) {
-			index = i;
+	for (int i = 1; i < staticTableBeginLen; i++) {
+		int keyMatch = 0;
+		if (!strcmp(hpackStaticTable[i].name, field->name)) {
+			keyMatch = 1;
 		}
+
+		int nameMatch = 0;
 		if (!strcmp(hpackStaticTable[i].value, field->value)) {
-			fullIndex = i;
-			(*fullMatch) = 1;
-			break;
+			nameMatch = 1;
 		}
+
+		// printf("%s: %s: keyMatch = %d nameMatch = %d\n", hpackStaticTable[i].name, hpackStaticTable[i].value, keyMatch, nameMatch);
+
+		if (!keyMatch) { continue; }
+
+		if (!nameMatch) {
+			if (!index) { index = i; }
+			continue;
+		}
+
+		*fullMatch = 1;
+		fullIndex = i;
+		index = i;
+		break;
 	}
 
 	if (!fullIndex) {
 		struct hpack_header_field *f = h->dynamicTable;
 		for (int i = 0; i < h->dynamicTableLen; i++) {
 			if (!strcmp(f->name, field->name) && !strcmp(f->value, field->value)) {
-				fullIndex = i + dynamicTableBeginIndex;
+				fullIndex = i + staticTableBeginLen;
 				(*fullMatch) = 1;
 				break;
 			}
@@ -475,8 +508,12 @@ char *hpack_encode(struct hpack *h, struct hpack_header_field *header, int heade
 		struct hpack_header_field f = header[i];
 		int fullMatch = 0;
 		int index = hpack_lookup_index(h, &f, &fullMatch);
-		// printf("index = %d\n", index);
+		// dprintf("index = %d\n", index);
 		if (fullMatch) {
+			dprintf("== Indexed - Add ==\n");
+			dprintf("  idx = %d\n", index);
+			dprintf("--> %s: %s\n", f.name, f.value);
+
 			int len = 0;
 			char *integer = hpack_encode_integer(7, index, &len);
 			integer[0] |= 0x80; // prefix: 1
@@ -494,22 +531,27 @@ char *hpack_encode(struct hpack *h, struct hpack_header_field *header, int heade
 			break;
 		}
 
+		dprintf("== Literal indexed ==\n");
 		if (index) {
 			int len = 0;
 			char *integer = hpack_encode_integer(6, index, &len);
 			integer[0] |= prefix;
 			data = append_string(data, dataLen, &cap, integer, len);
+			dprintf("  Indexed name (idx = %d)\n    %s\n", index, f.name);
 		} else {
 			data[(*dataLen)++] = prefix;
 			int len = 0;
 			char *string = hpack_encode_string(f.name, strlen(f.name), huffmanEnc, &len);
 			data = append_string(data, dataLen, &cap, string, len);
+			dprintf("  Literal name (len = %d)\n    %s\n", len, f.name);
 		}
 
 		int len = 0;
 		char *string = hpack_encode_string(f.value, strlen(f.value), huffmanEnc, &len);
 		data = append_string(data, dataLen, &cap, string, len);
+		dprintf("  Literal value (len = %d)\n    %s\n", len, f.value);
 
+		dprintf("--> %s: %s\n", f.name, f.value);
 		if (f.type != HEADER_FIELD_WITH_INCREMENTAL) {
 			continue;
 		}
@@ -520,4 +562,21 @@ char *hpack_encode(struct hpack *h, struct hpack_header_field *header, int heade
 		}
 	}
 	return data;
+}
+
+// For hpack_header_field array
+struct hpack_header_field *hpack_get_header(struct hpack_header_field *header, int len, char *name)
+{
+	for (int i = 0; i < len; i++) {
+		// printf("hpack_get_header: %s == %s = %d\n", header[i].name, name, strcmp(header[i].name, name));
+		if (!strcmp(header[i].name, name)) return &header[i];
+	}
+	return NULL;
+}
+
+void hpack_header_fields_dump(struct hpack_header_field *header, int len)
+{
+	for (int i = 0; i < len; i++) {
+		printf("%s: %s\n", header[i].name, header[i].value);
+	}
 }

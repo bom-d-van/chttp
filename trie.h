@@ -10,11 +10,12 @@
 typedef struct TrieNode {
 	// char *url;
 	handler handler;
+	handler2 handler2;
 	struct TrieNode **children;
 } TrieNode;
 
 TrieNode *TrieNode_find(TrieNode *node, char *key);
 TrieNode *TrieNode_new();
-int TrieNode_insert(TrieNode *root, char *key, handler handler);
+int TrieNode_insert(TrieNode *root, char *key, handler handler, handler2 handler2);
 
 #endif

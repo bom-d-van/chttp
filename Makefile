@@ -38,7 +38,9 @@ chttp:
 	$(CC) util.c -o bin/util.o
 	$(CC) frame.c -o bin/frame.o
 	$(CC) chttp_test.c -o bin/chttp_test.o
-	cc -L/usr/local/opt/openssl/lib -I/usr/local/opt/openssl/include -lssl -lcrypto -lpthread -lm bin/reader.o bin/request.o bin/trie.o bin/frame.o bin/util.o bin/chttp.o bin/chttp_test.o -o bin/chttp_test.bin
+	$(CC) hpack/tables.c -o bin/tables.o
+	$(CC) hpack/hpack.c -o bin/hpack.o
+	cc $(OPTFLAGS) -L/usr/local/opt/openssl/lib -I/usr/local/opt/openssl/include -lssl -lcrypto -lpthread -lm bin/reader.o bin/request.o bin/trie.o bin/frame.o bin/util.o bin/chttp.o bin/chttp_test.o bin/tables.o bin/hpack.o -o bin/chttp_test.bin
 
 hpacks:
 	$(CC) hpack/tables.c -o bin/tables.o

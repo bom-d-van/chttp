@@ -1,3 +1,4 @@
+#include "util.h"
 #include "chttp.h"
 
 Frame *Frame_new(int type)
@@ -69,6 +70,8 @@ void Frame_dump(Frame *frame)
 {
 	char *header = "";
 	switch (frame->type) {
+	case FT_DATA:
+		header = "DATA"; break;
 	case FT_HEADERS:
 		header = "HEADERS"; break;
 	case FT_PRIORITY:
@@ -87,11 +90,14 @@ void Frame_dump(Frame *frame)
 		header = "WINDOW_UPDATE"; break;
 	case FT_CONTINUATION:
 		header = "CONTINUATION"; break;
+	default:
+		header = "UNKNOWN";
 	}
 
-	printf("[FrameHeader %s len=%d flag=%x]\n", header, frame->len, frame->flags);
+	printf("[FrameHeader %s id=%d len=%d flag=%x]\n", header, frame->id, frame->len, frame->flags);
 
 	if (frame->payload) {
+		printf("payload: ");
 		print_hex(frame->payload, frame->len);
 	}
 }

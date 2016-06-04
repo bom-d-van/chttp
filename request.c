@@ -118,23 +118,58 @@ int *Request_parse_form(Request *request)
 	int count = atoi(Request_get_header(request, "Content-Length")->value);
 	char *body = calloc(count, sizeof(char));
 	read(request->conn, body, count);
-	request->form = calloc(10, sizeof(FormItem));
-	FormItem *item = request->form;
+
+	request->form = parseURLEncodedForm(body, count, &(request->formNum));
+
+	// request->form = calloc(10, sizeof(FormItem));
+	// FormItem *item = request->form;
+	// int start = 0;
+	// for (int i = 0; i <= count; i++) {
+	// 	if (body[i] == '&' || i == count) {
+	// 		item->value = calloc(i-start, sizeof(char));
+	// 		memcpy(item->value, body+start, i-start);
+	// 		start = i + 1;
+	// 		item++;
+	// 		request->formNum++;
+	// 	} else if (body[i] == '=') {
+	// 		item->name = calloc(i-start, sizeof(char));
+	// 		memcpy(item->name, body+start, i-start);
+	// 		start = i + 1;
+	// 	}
+	// }
+
+	return 0;
+}
+
+FormItem *parseURLEncodedForm(char *body, int count, int *itemLen)
+{
+	int cap = 10;
+	*itemLen = 0;
+	FormItem *form = calloc(cap, sizeof(FormItem));
+	FormItem *item = form;
 	int start = 0;
 	for (int i = 0; i <= count; i++) {
 		if (body[i] == '&' || i == count) {
 			item->value = calloc(i-start, sizeof(char));
 			memcpy(item->value, body+start, i-start);
+
+			(*itemLen)++;
+			if (*itemLen >= cap) {
+				cap *= 1.5;
+				form = realloc(form, cap * sizeof(FormItem));
+				item = form + *itemLen;
+			} else {
+				item++;
+			}
 			start = i + 1;
-			item++;
-			request->formNum++;
 		} else if (body[i] == '=') {
 			item->name = calloc(i-start, sizeof(char));
 			memcpy(item->name, body+start, i-start);
 			start = i + 1;
 		}
 	}
-	return 0;
+
+	return form;
 }
 
 int Response_write(Response *response, char *data)
@@ -166,7 +201,7 @@ int Response_write(Response *response, char *data)
 	}
 
 	char length[256] = {0};
-	// sprintf(length, "%d", strlen(data));
+	sprintf(length, "%lu", strlen(data));
 	write(response->conn, "Content-Length: ", 16);
 	write(response->conn, length, strlen(length));
 	write(response->conn, "\r\n", 2);

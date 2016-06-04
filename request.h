@@ -11,6 +11,8 @@ typedef struct {
 	char *value;
 } FormItem;
 
+FormItem *parseURLEncodedForm(char *body, int count, int *itemLen);
+
 typedef struct Request {
 	int conn;
 	char *method;
@@ -49,6 +51,26 @@ typedef int (*handler)(Request *, Response *);
 
 int Response_write(Response *response, char *data);
 int Response_free(Response *response);
+
+struct Request2 {
+	struct hpack_header_field *header;
+	int headerLen;
+	int frameID;
+
+	int bodyLen;
+	char *body;
+};
+
+struct Response2 {
+	// struct hpack *encoder;
+	struct hpack_header_field *header;
+	int headerLen;
+	char *body;
+	int bodyLen;
+	int frameID;
+};
+
+typedef int (*handler2)(struct Request2 *, struct Response2 *);
 
 char *status_to_string(int status);
 

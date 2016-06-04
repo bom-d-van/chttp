@@ -22,7 +22,7 @@ TrieNode *TrieNode_new()
 }
 
 // TODO: insert existed node?
-int TrieNode_insert(TrieNode *root, char *key, handler handler)
+int TrieNode_insert(TrieNode *root, char *key, handler handler, handler2 handler2)
 {
 	TrieNode *node = root;
 	int i = 0;
@@ -44,5 +44,6 @@ int TrieNode_insert(TrieNode *root, char *key, handler handler)
 	}
 
 	node->handler = handler;
+	node->handler2 = handler2;
 	return 0;
 }

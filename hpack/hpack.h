@@ -30,6 +30,8 @@ struct hpack_header_field {
 	int size;
 	int ltrName;  // is literal name
 	int ltrValue; // is literal value
+
+	// For Dynamic Table
 	struct hpack_header_field *prev;
 	struct hpack_header_field *next;
 
@@ -37,6 +39,8 @@ struct hpack_header_field {
 };
 
 void hpack_header_field_free(struct hpack_header_field *field);
+struct hpack_header_field *hpack_get_header(struct hpack_header_field *header, int len, char *name);
+void hpack_header_fields_dump(struct hpack_header_field *header, int len);
 
 struct hpack {
 	struct hpack_header_field *dynamicTable;
@@ -44,14 +48,12 @@ struct hpack {
 	int dynamicTableLen;
 	int dynamicTableSize;
 	int maxTableSize;
-
-	int fieldsLen;
-	struct hpack_header_field *headerFields;
 };
 
 struct hpack_header_field *hpackStaticTable;
 
 struct hpack *hpack_new();
+void hpack_free(struct hpack * h);
 struct hpack_header_field *hpack_decode(struct hpack *h, char *data, int dataLen, int *fieldLen);
 char *hpack_encode(struct hpack *h, struct hpack_header_field *header, int headerLen, int huffmanEnc, int *dataLen);
 
@@ -65,7 +67,6 @@ char *hpack_encode(struct hpack *h, struct hpack_header_field *header, int heade
 	#define dprintf(M, ...) printf(M, ##__VA_ARGS__)
 #else
 	#define dprintf(...)
-
 #endif
 
 #endif

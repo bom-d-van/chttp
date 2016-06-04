@@ -95,11 +95,11 @@ char integer_code4[] = {0x0A, 0x63, 0x75, 0x73, 0x74, 0x6F, 0x6D, 0x2D, 0x6B, 0x
 char integer_code5[] = {0x82, 0x86, 0x84, 0x41, 0x0F, 0x77, 0x77, 0x77, 0x2E, 0x65, 0x78, 0x61, 0x6D, 0x70, 0x6C, 0x65, 0x2E, 0x63, 0x6F, 0x6D, 0x00};
 
 struct integer_sample integer_samples[] = {
-	{.n = 5, .val = 10,   .codeLen = 1, .code = integer_code1, .readLen = 1, .prefix = 0xE0}, // 0xE0 -> 11100000
-	{.n = 5, .val = 1337, .codeLen = 3, .code = integer_code2, .readLen = 3, .prefix = 0x80}, // 0xE0 -> 11100000
-	{.n = 8, .val = 42,   .codeLen = 1, .code = integer_code3, .readLen = 1, .prefix = 0x0},
+	{.n = 5, .val = 10,   .codeLen = 1,  .code = integer_code1, .readLen = 1, .prefix = 0xE0}, // 0xE0 -> 11100000
+	{.n = 5, .val = 1337, .codeLen = 3,  .code = integer_code2, .readLen = 3, .prefix = 0x80}, // 0xE0 -> 11100000
+	{.n = 8, .val = 42,   .codeLen = 1,  .code = integer_code3, .readLen = 1, .prefix = 0x0},
 	{.n = 7, .val = 10,   .codeLen = 25, .code = integer_code4, .readLen = 1, .prefix = 0x0},
-	{.n = 7, .val = 2,   .codeLen = 20, .code = integer_code5, .readLen = 1, .prefix = 0x80},
+	{.n = 7, .val = 2,    .codeLen = 20, .code = integer_code5, .readLen = 1, .prefix = 0x80},
 };
 
 void test_hpack_encode_integer()
@@ -464,15 +464,32 @@ struct hpack_decode_sample hpack_decode_samples[] = {
 			},
 		},
 	},
+
+	{
+		// case 8
+		.unitLen = 1,
+		.maxDynamicTableSize = 0,
+		.huffmanEnc = 0,
+		.unit = (struct hpack_decode_sample_unit[]){
+			{
+				.data = (char[]){0x6E, 0x01, 0x2F, 0x00}, .dataLen = 3,
+				.fieldsLen = 1,
+				.fields = (struct hpack_header_field[]){
+					{.name = "location", .value = "/",},
+				},
+				.dynamicTableLen = 0, .dynamicTableSize = 0,
+			},
+		},
+	},
 };
 
 void test_hpack_decode()
 {
 	printf("== test_hpack_decode\n");
 	for (size_t i = 0; i < sizeof(hpack_decode_samples)/sizeof(struct hpack_decode_sample); i++) {
-		// if (i != 6) {
-		// 	continue;
-		// }
+		if (i != 8) {
+			continue;
+		}
 		struct hpack_decode_sample s = hpack_decode_samples[i];
 		struct hpack *h = hpack_new();
 		if (s.maxDynamicTableSize) {
@@ -532,7 +549,7 @@ void test_hpack_encode()
 {
 	printf("== test_hpack_encode\n");
 	for (size_t i = 0; i < sizeof(hpack_decode_samples)/sizeof(struct hpack_decode_sample); i++) {
-		// if (i != 1) {
+		// if (i != 4) {
 		// 	continue;
 		// }
 		struct hpack_decode_sample s = hpack_decode_samples[i];
@@ -541,6 +558,7 @@ void test_hpack_encode()
 			h->maxTableSize = s.maxDynamicTableSize;
 		}
 		for (size_t j = 0; j < s.unitLen; j++) {
+			// printf("----------------\n\n");
 			// printf("case %zu %zu\n", i, j);
 			struct hpack_decode_sample_unit unit = s.unit[j];
 			int len = 0;
@@ -550,7 +568,7 @@ void test_hpack_encode()
 				exitCode = 1;
 			}
 			if (strcmp(data, unit.data)) {
-				printf("case [%zu][%zu]:\n", i, j);
+				printf("case[%zu][%zu]:\n", i, j);
 				printf("data = ");
 				print_hex(data, len);
 				printf("want = ");
