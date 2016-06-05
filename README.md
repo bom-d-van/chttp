@@ -2,7 +2,7 @@
 
 Van's first http server in C. A learning result.
 
-Primitive and limited support HTTP/1.1 and HTTP/2.
+Primitive and limited support for HTTP/1.1 and __HTTP/2__.
 
 ```sh
 # generate self-signed certification: conf/server.key, conf/server.crt
