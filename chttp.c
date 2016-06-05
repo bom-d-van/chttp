@@ -316,7 +316,6 @@ int Server_handle_http2_conn(Server *server, SSL *cSSL)
 
 		Frame_dump(frame); // DEBUG
 
-
 		switch (frame->type) {
 		case FT_HEADERS:
 			{};
