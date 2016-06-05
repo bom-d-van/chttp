@@ -11,5 +11,7 @@ Primitive and limited support HTTP/1.1 and HTTP/2.
 make -s OPTFLAGS=-DDEBUG chttp && bin/chttp_test.bin
 
 # add local.test.com to /etc/hosts
+echo '127.0.0.1 local.test.com' >> /etc/hosts
+
 # visit: https://local.test.com:8443/
 ```
