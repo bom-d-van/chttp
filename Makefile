@@ -1,10 +1,10 @@
 # -rdynamic
 CC=cc -g -O2 -Wall -Wextra -Wno-unused -fPIC -I/usr/local/opt/openssl/include -c $(OPTFLAGS)
 
-default:
-	$(CC) reader.c -o bin/reader.o
-	$(CC) chttp.c -o bin/chttp.o
-	cc bin/reader.o bin/chttp.o -o bin/chttp.bin
+default: chttp
+	# $(CC) reader.c -o bin/reader.o
+	# $(CC) chttp.c -o bin/chttp.o
+	# cc bin/reader.o bin/chttp.o -o bin/chttp.bin
 
 reader:
 	$(CC) reader.c -o bin/reader.o

@@ -45,23 +45,40 @@ void Frame_decode_header(Frame *frame, char *data)
 	// char *result = calloc(9, sizeof(char));
 	// frame->len = (2<<24) - 1;
 
+	print_hex(data, 9);
 	// 0000 0000 0000 0000 0000 0000
 	// 0000 0000 0000 0000 0000 0000
 	frame->len = 0;
-	frame->len = data[0] << 16 | data[1] << 8 | data[2];
-	// frame->len |= ;
-	// frame->len |= ;
-	frame->len &= ((2<<24) - 1);
-	// printf("--- %x\n", (2<<23)-1);
+	// printf("len = %0x\n", frame->len);
+
+	// printf("%02hhx\n", data[0] << 16);
+	// printf("%02hhx\n", data[1] << 8);
+	// printf("%02hhx\n", data[2]);
+	frame->len = (unsigned char)(data[0] << 16) | (unsigned char)(data[1] << 8) | (unsigned char)(data[2]);
+	// frame->len |= (int)(data[0] << 16);
+	// // printf("len = %d\n", frame->len);
+	// frame->len |= (int)(data[1] << 8);
+	// // printf("len = %d\n", frame->len);
+	// frame->len |= (unsigned char)data[2];
+
+	// printf("%x\n", data[2]);
+
+	// printf("len = %0x\n", frame->len);
+	// printf("(1<<24) - 1 = %0x\n", (1<<24));
+
+	// frame->len &= ((1<<24) - 1);
+	// printf("--- %x\n", (1<<23)-1);
+
+	// printf("len = %d\n", frame->len);
 
 	frame->type = data[3];
 	frame->flags = data[4];
 
 	frame->id = 0;
-	frame->id |= data[5] << 24;
-	frame->id |= data[6] << 16;
-	frame->id |= data[7] << 8;
-	frame->id |= data[8];
+	frame->id |= (unsigned char)(data[5] << 24);
+	frame->id |= (unsigned char)(data[6] << 16);
+	frame->id |= (unsigned char)(data[7] << 8);
+	frame->id |= (unsigned char)(data[8]);
 
 	// return 0;
 }

@@ -147,6 +147,8 @@ int handlePost2(struct Request2 *request, struct Response2 *response)
 
 int main(void)
 {
+	signal(SIGPIPE, SIG_IGN);
+
 	int port = 8443;
 	printf("Listening :%d\n", port);
 	Server *server = Server_new(port);

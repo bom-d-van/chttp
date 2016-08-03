@@ -112,6 +112,21 @@ struct GoAwayFrame *GoAwayFrame_decode(Frame *frame);
 void GoAwayFrame_free(struct GoAwayFrame *gaframe);
 void GoAwayFrame_dump(struct GoAwayFrame *gaframe);
 
+// +-+-------------------------------------------------------------+
+// |E|                  Stream Dependency (31)                     |
+// +-+-------------+-----------------------------------------------+
+// |   Weight (8)  |
+// +-+-------------+
+struct PriorityFrame {
+	int e;
+	int streamDependency;
+	int weight;
+};
+
+struct PriorityFrame *PriorityFrame_decode(Frame *frame);
+void PriorityFrame_free(struct PriorityFrame *gaframe);
+void PriorityFrame_dump(struct PriorityFrame *gaframe);
+
 typedef struct Server {
 	int port;
 	TrieNode *routes;

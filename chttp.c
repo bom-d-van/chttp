@@ -84,23 +84,18 @@ int Server_handle_http1_conn(Server *server, int childfd)
 	return 0;
 }
 
-int alpn_select_cb(SSL *__attribute__((unused))s, const unsigned char **out, unsigned char *outlen, const unsigned char *__attribute__((unused))in, unsigned int __attribute__((unused))inlen, void *__attribute__((unused))arg)
-{
-	*out = (const unsigned char *)"h2-14";
-	*outlen = 2;
-	return 0;
-}
-
-int Server_next_id(Server *server)
-{
-	server->id += 2;
-	return server->id - 2;
-}
+// int alpn_select_cb(SSL *__attribute__((unused))s, const unsigned char **out, unsigned char *outlen, const unsigned char *__attribute__((unused))in, unsigned int __attribute__((unused))inlen, void *__attribute__((unused))arg)
+// {
+// 	*out = (const unsigned char *)"h2-14";
+// 	*outlen = 2;
+// 	return 0;
+// }
 
 static unsigned char next_proto_list[256];
 static size_t next_proto_list_len;
 
 static int next_proto_cb(SSL *__attribute__((unused))s, const unsigned char **data, unsigned int *len, void *__attribute__((unused))arg) {
+	printf("next_proto_list = %s\n", next_proto_list);
 	*data = next_proto_list;
 	*len = (unsigned int)next_proto_list_len;
 	return SSL_TLSEXT_ERR_OK;
@@ -115,9 +110,9 @@ static SSL_CTX *create_ssl_ctx(const char *key_file, const char *cert_file) {
 		errx(1, "Could not create SSL/TLS context: %s", ERR_error_string(ERR_get_error(), NULL));
 	}
 	SSL_CTX_set_options(ssl_ctx,
-	            		SSL_OP_ALL | SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 |
-	                	SSL_OP_NO_COMPRESSION |
-	                	SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION);
+						SSL_OP_ALL | SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 |
+						SSL_OP_NO_COMPRESSION |
+						SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION);
 
 	ecdh = EC_KEY_new_by_curve_name(NID_X9_62_prime256v1);
 	if (!ecdh) {
@@ -137,6 +132,10 @@ static SSL_CTX *create_ssl_ctx(const char *key_file, const char *cert_file) {
 	next_proto_list[0] = 2;
 	memcpy(&next_proto_list[1], "h2", 2);
 	next_proto_list_len = 1 + 2;
+
+	// char protos[] = {0x02, 'h', '2', 0x00};
+	// int r = SSL_CTX_set_alpn_protos(ssl_ctx, (unsigned char *)protos, 3);
+	// printf("r = %d\n", r);
 
 	SSL_CTX_set_next_protos_advertised_cb(ssl_ctx, next_proto_cb, NULL);
 	return ssl_ctx;
@@ -206,11 +205,22 @@ int Server_run(Server *server)
 
 		SSL *cSSL = SSL_new(sslctx);
 		SSL_set_fd(cSSL, childfd);
+
+		// char protos[] = {0x02, 'h', '2', 0x00};
+		// int r = SSL_set_alpn_protos(cSSL, (unsigned char *)protos, 3);
+		// printf("r = %d\n", r);
+
 		// Here is the SSL Accept portion.  Now all reads and writes must use SSL
 		int ssl_err = SSL_accept(cSSL);
 		if (ssl_err != 1) {
 			printf("SSL_accept: %d\n", ssl_err);
 		}
+
+		const unsigned char  *ret_alpn;
+		unsigned int  alpn_len;
+		SSL_get0_alpn_selected(cSSL, &ret_alpn, &alpn_len);
+		printf("ret_alpn = %s\n", ret_alpn);
+		printf("alpn_len = %d\n", alpn_len);
 
 		Server_handle_http2_conn(server, cSSL);
 		close(childfd);
@@ -222,7 +232,7 @@ int readSize(SSL *cSSL, char *buf, int len)
 {
 	int read = 0;
 	while (read < len) {
-		// printf("reading %d...\n", read);
+		// printf("readSize: len = %d reading = %d...\n", len, read);
 		int v = SSL_read(cSSL, &buf[read], len-read);
 		if (v <= 0) {
 			return v;
@@ -235,16 +245,28 @@ int readSize(SSL *cSSL, char *buf, int len)
 
 Frame *get_next_frame(SSL *cSSL)
 {
+	// printf("waiting for next frame\n");
 	Frame *frame = Frame_new(0);
 
 	char buf[10] = {0};
 	int size = readSize(cSSL, buf, 9);
+	// printf("size = %d\n", size);
 	if (size <= 0) {
 		printf("readSize error: %d\n", size);
 		return NULL;
 	}
 
 	Frame_decode_header(frame, buf);
+
+	// printf("frame: ");
+	// print_hex(buf, 9);
+
+	// printf("%s\n", );
+
+	if (frame->type < 0 || frame->type > 9) {
+		printf("unknown frame type: %d\n", frame->type);
+		return NULL;
+	}
 
 	if (frame->len == 0) {
 		return frame;
@@ -262,20 +284,36 @@ struct http2Conn {
 	struct hpack *encoder;
 	struct SettingFrame settings;
 	int connWindowSize;
+	int id;
 };
+
+int Conn_next_id(struct http2Conn *conn)
+{
+	conn->id += 2;
+	return conn->id - 2;
+}
 
 int Server_handle_http2_conn(Server *server, SSL *cSSL)
 {
+	struct http2Conn conn = {
+		.cSSL           = cSSL,
+		.decoder        = hpack_new(),
+		.encoder        = hpack_new(),
+		.connWindowSize = (1 << 16) - 1, // TODO
+	};
+
 	// The server connection preface
 	Frame *frame = Frame_new(FT_SETTINGS);
-	frame->id = Server_next_id(server);
+	frame->id = Conn_next_id(&conn);
 	char header[9] = {0};
 	Frame_encode_header(frame, header);
+	printf("wrote: "); Frame_dump(frame);
 	SSL_write(cSSL, header, 9);
 
 	// The client connection preface
 	char preface[25] = {0};
 	SSL_read(cSSL, preface, 24);
+	printf("preface = %s\n", preface);
 	// TODO: check preface
 
 	// read preface frame
@@ -290,13 +328,6 @@ int Server_handle_http2_conn(Server *server, SSL *cSSL)
 	// struct SettingFrame settings;
 	// int connWindowSize = (1 << 16) - 1; // TODO
 
-	struct http2Conn conn = {
-		.cSSL           = cSSL,
-		.decoder        = hpack_new(),
-		.encoder        = hpack_new(),
-		.connWindowSize = (1 << 16) - 1, // TODO
-	};
-
 	struct http2Request {
 		struct Request2 *req;
 		int requestReady;
@@ -305,6 +336,8 @@ int Server_handle_http2_conn(Server *server, SSL *cSSL)
 	struct http2Request newRequest = {
 		.requestReady = 0,
 	};
+
+	// int loop = 3;
 
 	// int requestComplete = 0;
 	while (1) {
@@ -323,7 +356,7 @@ int Server_handle_http2_conn(Server *server, SSL *cSSL)
 			int len = 0;
 			// print_hex(hf->headerBlock, strlen(hf->headerBlock));
 			struct hpack_header_field *header = hpack_decode(conn.decoder, hf->headerBlock, hf->headerBlockLen, &len);
-			// printf("request headers\n");
+			printf("request headers\n");
 			printf("----\n"); hpack_header_fields_dump(header, len); printf("----\n");
 
 			struct Request2 *req = calloc(1, sizeof(struct Request2));
@@ -345,13 +378,16 @@ int Server_handle_http2_conn(Server *server, SSL *cSSL)
 			HeadesFrame_free(hf);
 			break;
 		case FT_CONTINUATION:
-			// TODO
+			printf("FT_CONTINUATION: unimplemented\n");
+			exit(404);
 			break;
 		case FT_DATA:
 			{};
+			printf("=================\n");
 			struct DataFrame *df = DataFrame_decode(frame);
-			printf("---------------\n");
-			printf("%d\n", newRequest.req->headerLen);
+			printf("=================\n");
+			// printf("---------------\n");
+			// printf("%d\n", newRequest.req->headerLen);
 			newRequest.req->body = df->data;
 			newRequest.req->bodyLen = df->dataLen;
 
@@ -362,6 +398,8 @@ int Server_handle_http2_conn(Server *server, SSL *cSSL)
 			// TODO: free df
 			break;
 		case FT_PRIORITY:
+
+			break;
 			{
 				Frame settingsResp = {
 					.flags = FLAGS_SETTING_ACK,
@@ -380,6 +418,18 @@ int Server_handle_http2_conn(Server *server, SSL *cSSL)
 		case FT_SETTINGS:
 			conn.settings = SettingFrame_decode(frame);
 			conn.connWindowSize = conn.settings.SETTINGS_INITIAL_WINDOW_SIZE;
+
+			printf("frame->id = %d\n", frame->id);
+			printf("conn.connWindowSize = %d\n", conn.connWindowSize);
+			printf("settings.SETTINGS_HEADER_TABLE_SIZE = %ld\n", conn.settings.SETTINGS_HEADER_TABLE_SIZE);
+			printf("settings.SETTINGS_ENABLE_PUSH = %ld\n", conn.settings.SETTINGS_ENABLE_PUSH);
+			printf("settings.SETTINGS_MAX_CONCURRENT_STREAMS = %ld\n", conn.settings.SETTINGS_MAX_CONCURRENT_STREAMS);
+			printf("settings.SETTINGS_INITIAL_WINDOW_SIZE = %ld\n", conn.settings.SETTINGS_INITIAL_WINDOW_SIZE);
+			printf("settings.SETTINGS_MAX_FRAME_SIZE = %ld\n", conn.settings.SETTINGS_MAX_FRAME_SIZE);
+			printf("settings.SETTINGS_MAX_HEADER_LIST_SIZE = %ld\n", conn.settings.SETTINGS_MAX_HEADER_LIST_SIZE);
+
+			break;
+
 			{
 				Frame settingsResp = {
 					.flags = FLAGS_SETTING_ACK,
@@ -390,13 +440,18 @@ int Server_handle_http2_conn(Server *server, SSL *cSSL)
 				char frameHeader[10] = {0};
 				Frame_encode_header(&settingsResp, frameHeader);
 				printf("wrote: "); Frame_dump(&settingsResp);
+				printf("frameHeader = "); print_hex(frameHeader, 9);
 				SSL_write(conn.cSSL, frameHeader, 9);
 			}
 
 			break;
 		case FT_PUSH_PROMISE:
+			printf("FT_PUSH_PROMISE: unimplemented\n");
+			exit(404);
 			break;
 		case FT_PING:
+			printf("FT_PING: unimplemented\n");
+			exit(404);
 			break;
 		case FT_GOAWAY:
 			{};
@@ -413,12 +468,16 @@ int Server_handle_http2_conn(Server *server, SSL *cSSL)
 			}
 
 			int size = 0;
-			size |= frame->payload[0] << 24;
-			size |= frame->payload[1] << 16;
-			size |= frame->payload[2] << 8;
-			size |= frame->payload[3];
+			size |= (unsigned char)frame->payload[0] << 24;
+			size |= (unsigned char)frame->payload[1] << 16;
+			size |= (unsigned char)frame->payload[2] << 8;
+			size |= (unsigned char)frame->payload[3];
 
+			printf("size = %d\n", size);
 			conn.connWindowSize += size;
+			printf("conn.connWindowSize = %d\n", conn.connWindowSize);
+
+			break;
 
 			{
 				Frame settingsResp = {
@@ -443,6 +502,11 @@ int Server_handle_http2_conn(Server *server, SSL *cSSL)
 		if (!newRequest.requestReady) {
 			continue;
 		}
+
+		// loop--;
+		// if (loop != 0) {
+		// 	continue;
+		// }
 
 		void Server_handle_http2_request(Server *server, struct http2Conn *conn, struct Request2 *req);
 		Server_handle_http2_request(server, &conn, newRequest.req);
@@ -473,6 +537,18 @@ void Server_handle_http2_request(Server *server, struct http2Conn *conn, struct 
 		resp->header[resp->headerLen].name = ":status";
 		resp->header[resp->headerLen].value = "404";
 		resp->headerLen++;
+
+		// resp->header[resp->headerLen].name = "content-type";
+		// resp->header[resp->headerLen].value = "text/plain; charset=utf-8";
+		// resp->headerLen++;
+
+		// resp->header[resp->headerLen].name = "content-length";
+		// resp->header[resp->headerLen].value = "0";
+		// resp->headerLen++;
+
+		// resp->header[resp->headerLen].name = "date";
+		// resp->header[resp->headerLen].value = "Sun, 12 Jun 2016 03:34:24 GMT";
+		// resp->headerLen++;
 
 		resp->bodyLen = 0;
 	} else {
@@ -793,8 +869,7 @@ void writeResponse(struct http2Conn *conn, struct Response2 *resp)
 	char frameHeader[10] = {0};
 	Frame_encode_header(&respFrame, frameHeader);
 
-	// printf("frameHeader: ");
-	// print_hex(frameHeader, 9);
+	printf("frameHeader: "); print_hex(frameHeader, 9);
 	SSL_write(conn->cSSL, frameHeader, 9);
 
 	printf("wrote: "); Frame_dump(&respFrame);
@@ -823,6 +898,20 @@ void writeResponse(struct http2Conn *conn, struct Response2 *resp)
 
 		printf("wrote: "); Frame_dump(&respFrame);
 		SSL_write(conn->cSSL, frameHeader, 9);
+		// switch(SSL_get_error(conn->cSSL,r)){
+		// case SSL_ERROR_NONE:
+		// 	if(9 != r)
+		// 	printf("Incomplete write!\n");
+		// 	break;
+		// default:
+		// 	printf("SSL write problem!\n");
+		// }
+
 		SSL_write(conn->cSSL, respFrame.payload, respFrame.len);
 	}
 }
+
+// struct PriorityFrame *PriorityFrame_decode(Frame *frame)
+// {
+
+// }
