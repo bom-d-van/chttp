@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "hpack.h"
+#include "../util.h"
 
 char *huffman_encode(char *data, int len, int *size)
 {
@@ -38,9 +39,15 @@ char *huffman_encode(char *data, int len, int *size)
 			}
 		}
 	}
+
 	if (rembits > 0) {
 		result[rlen] |= (1 << rembits) - 1;
 	}
+	*size = rlen;
+	if (rembits != 8) {
+		(*size) += 1;
+	}
+
 	return result;
 }
 
@@ -88,15 +95,20 @@ char *huffman_decode(char *data, int len, int *size)
 	char *result = calloc(cap, sizeof(char));
 	*size = 0;
 	struct huffman_node *cur = &huffman_tree;
+
+	// print_hex(data, len);
+
 	for (int i = 0; i < len; i++) {
-		// printf("i = %d\n", i);
 		char code = data[i];
+		// printf("i = %d code = %02hhx\n", i, code);
 		for (int j = 7; j >= 0; j--) {
+			// printf("(code >> j) & 1 = %d\n", (code >> j) & 1);
 			if ((code >> j) & 1) {
 				cur = cur->one;
 			} else {
 				cur = cur->zero;
 			}
+			// printf("cur == NULL = %d\n", cur == NULL);
 			if (cur->val == -1) {
 				continue;
 			}
@@ -183,22 +195,25 @@ int hpack_decode_integer(int n, char *code, int codeLen, int *readLen)
 	return val;
 }
 
-// returnLen should be initialized by the caller, not by this hpack_decode_string.
-char *hpack_decode_string(char *data, int dataLen, int *returnLen)
+// readLen should be initialized by the caller, not by this hpack_decode_string.
+char *hpack_decode_string(char *data, int dataLen, int *readLen)
 {
-	int readLen = 0;
-	int valLen = hpack_decode_integer(7, data, dataLen, &readLen);
+	int index = 0;
+	int valLen = hpack_decode_integer(7, data, dataLen, &index);
 
 	char *result = calloc(valLen+1, sizeof(char));
-	strlcpy(result, &data[readLen], valLen+1);
+	cpystr(result, &data[index], valLen);
 
-	(*returnLen) += readLen + valLen;
+	// printf("valLen = %d\n", valLen);
+
+	(*readLen) += index + valLen;
 
 	if (data[0] & 128) {
 		int size = 0;
 		char *nresult = huffman_decode(result, valLen, &size);
 		free(result);
 		result = nresult;
+		// printf("size = %d nresult = %s\n", size, nresult);
 	}
 
 	return result;
@@ -316,7 +331,7 @@ void hpack_decode_field(struct hpack *h, char *data, int dataLen, int *i, struct
 {
 	if (data[*i] & ((1 << prefix) - 1)) {
 		int readLen = 0;
-		int index = hpack_decode_integer(prefix, &data[*i], dataLen-*i, &readLen);
+		int index = hpack_decode_integer(prefix, &data[*i], dataLen-(*i), &readLen);
 		(*i) += readLen;
 
 		// TODO: handle field not found
@@ -331,6 +346,7 @@ void hpack_decode_field(struct hpack *h, char *data, int dataLen, int *i, struct
 	}
 
 	int len = 0;
+	// printf("*i = %d\n", *i);
 	field->value = hpack_decode_string(&data[*i], dataLen-(*i), &len);
 	(*i) += len;
 	dprintf("  Literal value (len = %d)\n    %s\n", len, field->value);
@@ -370,6 +386,7 @@ struct hpack_header_field *hpack_decode(struct hpack *h, char *data, int dataLen
 			dprintf("--> %s: %s\n", field.name, field.value);
 		} else if (code & 64) { // HEADER_FIELD_WITH_INCREMENTAL 01
 			dprintf("== Literal indexed ==\n");
+			// printf("dataLen = %d\n", dataLen);
 			hpack_decode_field(h, data, dataLen, &i, &field, 6);
 			int err = hpack_add_field(h, field);
 			if (err) {
@@ -465,9 +482,18 @@ char *append_string(char *dst, int *dlen, int *cap, char *src, int slen)
 		*cap = ((*cap) + slen) * 1.5;
 		dst = realloc(dst, (*cap) * sizeof(char));
 	}
-	strcat(&dst[*dlen], src);
+	// strcat(&dst[*dlen], src);
+
+	// printf("dst = "); print_hex(dst, *dlen);
+	// printf("src = "); print_hex(src, slen);
+
+	cpystr(&dst[*dlen], src, slen);
 	(*dlen) += slen;
 	dst[*dlen] = '\0';
+
+	// printf("dst = "); print_hex(dst, *dlen);
+	// printf("src = "); print_hex(src, slen);
+
 	return dst;
 }
 
@@ -496,6 +522,8 @@ char *hpack_encode_string(char *data, int dataLen, int huffmanEnc, int *returnLe
 	} else {
 		result[0] &= 0X7F; // prefix: 1
 	}
+
+	// printf("hpack_encode: "); print_hex(result, *returnLen);
 
 	return result;
 }
@@ -547,6 +575,7 @@ char *hpack_encode(struct hpack *h, struct hpack_header_field *header, int heade
 		}
 
 		int len = 0;
+		// printf("f.value (len = %lu) = %s\n", strlen(f.value), f.value);
 		char *string = hpack_encode_string(f.value, strlen(f.value), huffmanEnc, &len);
 		data = append_string(data, dataLen, &cap, string, len);
 		dprintf("  Literal value (len = %d)\n    %s\n", len, f.value);
